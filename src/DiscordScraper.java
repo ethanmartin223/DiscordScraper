@@ -25,41 +25,56 @@ public class DiscordScraper {
     public final int SCRAPE_FREQUENCY = 1000;//ms
     private final String DISCORD_API_BOT_KEY = "";
 
-
     // ------------------- // Local vars // ------------------- //
     private String channelUrl; // the entire url for the discord server+sub channel
     private String channelID; // the number for the sub channel with text you want to scrape
-
+    private long timeStartedScraping; // the time which the bot has started looking for messages
+    private long timeToNextScrape; // time to scrape next
+    private boolean continueScraping = false; // weather the bot should be scraping messages
+    private String lastMessageSent; //used as a hash to check against to make sure there is a new message;
 
     // ------------------- // Constructor // ------------------- //
     public DiscordScraper(String channelUrl) {
         this.channelUrl = channelUrl;
         System.out.println(channelUrl);
 
-        Pattern pattern = Pattern.compile("channels/\\d+/(\\d+)");
-        Matcher matcher = pattern.matcher(channelUrl);
-        if (matcher.find()) {
-            channelID = matcher.group(1);
-        } else {
-            throw new IllegalArgumentException("Invalid Discord channel URL: " + channelUrl);
-        }
+        channelID = regex("channels/\\d+/(\\d+)", channelUrl);
         System.out.println(channelID);
     }
 
 
     // ------------------- // Public Methods // ------------------- //
     public void scrape() throws IOException {
-        HashMap requestParams = new HashMap<String, String>();
-        System.out.println(makeRequest(constructGetMessageUrlFromAPI(10, 0), "GET", requestParams));
+        timeToNextScrape = System.currentTimeMillis();
+        continueScraping = true;
+
+        String messageScraped = "";
+
+        while (continueScraping) {
+            if (timeToNextScrape < System.currentTimeMillis()) {
+                messageScraped = getMostRecentMessage();
+                if (!messageScraped.equals(lastMessageSent)) {
+                    lastMessageSent = messageScraped;
+                    System.out.println(timeToNextScrape+": "+lastMessageSent);
+                }
+                timeToNextScrape = System.currentTimeMillis()+SCRAPE_FREQUENCY;
+            }
+        }
     }
 
-    public String constructGetMessageUrlFromAPI(int numberOfMessages, int afterTime) {
-        return DISCORD_API_URL+"/channels/"+channelID+"/messages?limit="+numberOfMessages+"&after="+afterTime;
+    public String getMostRecentMessage() throws IOException {
+        String mostRecentMessageJSON =
+                makeRequest(constructGetMessageUrlFromAPI(1), "GET");
+        return regex("\"content\"\\:\"(.*?)\"",mostRecentMessageJSON);
+    }
+
+    public String constructGetMessageUrlFromAPI(int numberOfMessages) {
+        return DISCORD_API_URL+"/channels/"+channelID+"/messages?limit="+numberOfMessages;
     }
 
     // ------------------- // Private Methods // ------------------- //
     //method is GET, POST, etc.
-    private String makeRequest(String stringUrl, String method, Map<String,String> params) throws IOException {
+    private String makeRequest(String stringUrl, String method) throws IOException {
 
         //connection settings
         URL url = new URL(stringUrl);
@@ -71,16 +86,8 @@ public class DiscordScraper {
 
         con.setDoOutput(true);
 
-//        // write data for params to the request
-//        DataOutputStream out = new DataOutputStream(con.getOutputStream());
-//        out.writeBytes(ParameterStringBuilder.getParamsString(params));
-//        out.flush();
-//        out.close();
-
-        int status = con.getResponseCode(); // get http status code
-        System.out.println("DEBUG: "+status);
-
         //if error print out the verbose error returned by request
+        int status = con.getResponseCode(); // get http status code
         Reader streamReader = null;
         if (status > 299) {
             streamReader = new InputStreamReader(con.getErrorStream());
@@ -115,11 +122,21 @@ public class DiscordScraper {
             }
 
             String resultString = result.toString();
-            return resultString.length() > 0
+            return !resultString.isEmpty()
                     ? resultString.substring(0, resultString.length() - 1)
                     : resultString;
         }
     }
 
+    // ---------------- // Helper Methods // --------------- //
+    private String regex(String pattern, String data) {
+        Pattern pat = Pattern.compile(pattern);
+        Matcher matcher = pat.matcher(data);
+        if (matcher.find()) {
+            return matcher.group(1);
+        } else {
+            throw new IllegalArgumentException("Invalid Regex Data: " + data);
+        }
+    }
 
 }
