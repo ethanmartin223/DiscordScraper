@@ -23,7 +23,7 @@ public class DiscordScraper {
     //https://discord.com/developers/applications/1373366130474877008
 
     public final int SCRAPE_FREQUENCY = 1000;//ms
-    private final String DISCORD_API_BOT_KEY = "MTM3MzM2NjEzMDQ3NDg3NzAwOA.G1p2nv.hIVp5MHt-fAEFBKZLFZ9WItf2vNZkNktLu8kOY";
+    private final String DISCORD_API_BOT_KEY = "";
 
 
     // ------------------- // Local vars // ------------------- //
